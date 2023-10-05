@@ -1,104 +1,94 @@
 import socket
 import signal
 import sys
+import threading
 import json
-import re
-
-# define the server's IP and port
-HOST = "127.0.0.1"
-PORT = 8019
-
-# create a socket object ip4, tcp
+from time import sleep
+# Define the server's IP address and port
+HOST = '127.0.0.1' # IP address to bind to (localhost)
+PORT = 8078 # Port to listen on
+# Create a socket that uses IPv4 and TCP
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-# bind the socket to the specified host and port
+# Bind the socket to the address and port
 server_socket.bind((HOST, PORT))
-
-# listen for incoming connections
-server_socket.listen(5)
-print(f"[*] Listening as {HOST}:{PORT}")
-
-
-# Function to handle Ctrl+C and other signals
-def signal_handler(sig, frame):
-    print("\nShutting down the server...")
-    server_socket.close()
-    sys.exit(0)
+# Listen for incoming connections
+server_socket.listen(5) # Increased backlog for multiple simultaneous connections
+print(f"Server is listening on {HOST}:{PORT}")
 
 
-# Register the signal handler
-signal.signal(signal.SIGINT, signal_handler)
-
-
-# function to handle clients' requests
+# Function to handle client requests
 def handle_request(client_socket):
+    data = {}
+# Read the JSON file
+    with open('products.json', 'r') as file:
+        data = json.load(file)
+
+
     # Receive and print the client's request data
     request_data = client_socket.recv(1024).decode('utf-8')
     print(f"Received Request:\n{request_data}")
-
     # Parse the request to get the HTTP method and path
     request_lines = request_data.split('\n')
     request_line = request_lines[0].strip().split()
-    method = request_line[0]
-    path = request_line[1]
+    method = request_line[0]  # Get the HTTP method
+    path = request_line[1]    # Get the requested path
 
     # Initialize the response content and status code
     response_content = ''
     status_code = 200
 
-    with open('products.json', 'r') as file:
-        products_json = json.load(file)
-
-    cnt = 1
-
-    if path == '/':
-        response_content = '<h2>Main page</h2>'
-        response_content += '<a href="/product">Products</a><br></br>'
-        response_content += '<a href="/about">About</a><br></br>'
-        response_content += '<a href="/contacts">Contacts</a>'
-    elif path == '/about':
-        response_content = '<h2>About</h2>'
-    elif path == '/contacts':
-        response_content = '<h2>Contacts</h2>'
-    elif path == '/product':
-        response_content = '<h2>Product</h2>'
-        for item in products_json:
-            response_content += '<a href="/product/' + str(cnt) + '">'+item["name"]+'</a> <br></br>'
-            cnt += 1
-    elif re.match('/product/\d+',path):
-
-        list = path.split('/')
-        index =int(list[2]) -1
-
-        if(index >= len(products_json)):
-            response_content = '<h1>404 Not Found</h1'
+    # Define a simple routing mechanism
+    if method == 'GET':
+        if path == '/home':
+            # sleep(15)
+            response_content = 'This is the main page.'
+        elif path == '/about':
+            response_content = 'hy'
+        elif path == '/contact':
+            response_content = 'contact us'
+        elif path == '/products':
+            responsetosend = ''
+            for products in range(1, 3):
+                # Retrieve information based on the product number
+                product_info = data[str(products)]
+                
+                responsetosend = responsetosend + f'product #{str(products)}: <a href="/product-items/{str(products)}"> {product_info["name"]}</a>  <br>'
+            response_content = responsetosend
+        elif path.startswith('/product-items/'):
+            # Extract the product number from the path
+            product_number = path[len('/product-items/'):]
+            # Check if the product number exists in the 'data' dictionary
+            if product_number in data:
+                product_info = data[product_number]
+                response_content = f'<h2>"name" : {product_info["name"]} <br> "author" : {product_info["author"]} <br> "price" : {product_info["price"]} <br> "description" : {product_info["description"]} </h2>'
+            else:
+                response_content = 'product not found'
         else:
-            name = products_json[index]['name']
-            price = products_json[index]['price']
-            description = products_json[index]['description']
-            author = products_json[index]['author']
-
-            response_content = '<h1>'+name+'</h1>'
-            response_content += '<h4>' + str(price) + '</h4>'
-            response_content += '<p>' + description + '</p>'
-            response_content += '<p>' + author + '</p>'
-
+            response_content = '404 Not Found'
+            status_code = 404
     else:
-        response_content = '<h1>404 Not Found</h1'
-        status_code = 404
+        response_content = '405 Method Not Allowed'
+        status_code = 405
 
+    # Prepare the HTTP response
     response = f'HTTP/1.1 {status_code} OK\nContent-Type: text/html\n\n{response_content}'
     client_socket.send(response.encode('utf-8'))
-
+    # Close the client socket
     client_socket.close()
 
 
+def signal_handler(sig, frame):
+    print("\nShutting down the server...")
+    server_socket.close()
+    sys.exit(0)
+    # Register the signal handler
+
+
+signal.signal(signal.SIGINT, signal_handler)
 while True:
     # Accept incoming client connections
     client_socket, client_address = server_socket.accept()
     print(f"Accepted connection from {client_address[0]}:{client_address[1]}")
-    try:
-        # Handle the client's request in a separate thread
-        handle_request(client_socket)
-    except KeyboardInterrupt:
-        pass
+    # Create a thread to handle the client's request
+    client_handler = threading.Thread(target=handle_request, args=(client_socket,))
+    client_handler.start()
