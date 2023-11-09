@@ -9,7 +9,7 @@ def create_app():
     app = Flask(__name__)
     # Configure SQLAlchemy to use SQLite
     # app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///your_database.db'
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://your_username:your_password@localhost/your_database'  
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://andrei:123123@localhost/your_database.db'  
 
     db.init_app(app)
     Swagger(app)
@@ -18,4 +18,4 @@ def create_app():
 if __name__ == "__main__":
     app = create_app()
     import routes
-    app.run(host='127.0.0.1', port=90)
+    app.run(host='127.0.0.1', port=96)
